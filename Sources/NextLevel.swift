@@ -492,7 +492,7 @@ public protocol NextLevelVideoDelegate: NSObjectProtocol {
     func nextLevel(_ nextLevel: NextLevel, didUpdateVideoZoomFactor videoZoomFactor: Float)
 
     // video processing
-    func nextLevel(_ nextLevel: NextLevel, willProcessRawVideoSampleBuffer sampleBuffer: CMSampleBuffer)
+    func nextLevel(_ nextLevel: NextLevel, willProcessRawVideoSampleBuffer sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection!)
     func nextLevel(_ nextLevel: NextLevel, renderToCustomContextWithImageBuffer imageBuffer: CVPixelBuffer, onQueue queue: DispatchQueue)
 
     // video recording session
@@ -2397,7 +2397,7 @@ extension NextLevel: AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureMeta
             switch captureOutput {
             case videoOutput:
                 self.executeClosureAsyncOnMainQueueIfNecessary {
-                    self.videoDelegate?.nextLevel(self, willProcessRawVideoSampleBuffer: sampleBuffer)
+                    self.videoDelegate?.nextLevel(self, willProcessRawVideoSampleBuffer: sampleBuffer, from: connection)
                 }
                 self._lastVideoFrame = sampleBuffer
                 if let session = self._recordingSession {
