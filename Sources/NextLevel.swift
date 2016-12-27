@@ -514,6 +514,16 @@ public protocol NextLevelVideoDelegate: NSObjectProtocol {
     
 }
 
+
+
+// MARK: - NextLevelMetaDelegate
+
+public protocol NextLevelMetaDelegate: NSObjectProtocol {
+    
+    // video zoom    // video processing
+    func nextLevel(_ nextLevel: NextLevel, didOutputMetadataObjects metadataObjects: [Any]!, from connection: AVCaptureConnection!)
+}
+
 // MARK: - NextLevelPhotoDelegate
 
 /// Photo delegate, provides updates on photo related capture functionality.
@@ -532,6 +542,7 @@ public protocol NextLevelPhotoDelegate: NSObjectProtocol {
 // MARK: - constants
 
 private let NextLevelCaptureSessionIdentifier = "engineering.NextLevel.captureSession"
+private let NextLevelCaptureMetaSessionIdentifier = "engineering.NextLevel.captureMetaSession"
 private let NextLevelCaptureSessionSpecificKey = DispatchSpecificKey<NSObject>()
 private let NextLevelRequiredMinimumStorageSpaceInBytes: UInt64 = 49999872 // ~47 MB
 
@@ -546,6 +557,7 @@ public class NextLevel: NSObject {
     public weak var deviceDelegate: NextLevelDeviceDelegate?
     public weak var flashDelegate: NextLevelFlashAndTorchDelegate?
     public weak var videoDelegate: NextLevelVideoDelegate?
+    public weak var metaDelegate: NextLevelMetaDelegate?
     public weak var photoDelegate: NextLevelPhotoDelegate?
     
     // preview
@@ -646,12 +658,14 @@ public class NextLevel: NSObject {
     
     internal var _captureSession: AVCaptureSession?
     internal var _sessionQueue: DispatchQueue
+    internal var _metaQueue: DispatchQueue
     internal var _sessionConfigurationCount: Int
 
     internal var _videoInput: AVCaptureDeviceInput?
     internal var _audioInput: AVCaptureDeviceInput?
     
     internal var _videoOutput: AVCaptureVideoDataOutput?
+    internal var _metaOutput: AVCaptureMetadataOutput?
     internal var _audioOutput: AVCaptureAudioDataOutput?
     internal var _photoOutput: AVCapturePhotoOutput?
     
@@ -682,6 +696,10 @@ public class NextLevel: NSObject {
         
         self._sessionQueue = DispatchQueue(label: NextLevelCaptureSessionIdentifier, qos: .userInitiated, target: DispatchQueue.global())
         self._sessionQueue.setSpecific(key: NextLevelCaptureSessionSpecificKey, value: self._sessionQueue)
+        
+        self._metaQueue = DispatchQueue(label: NextLevelCaptureMetaSessionIdentifier, qos: .userInitiated, target: DispatchQueue.global())
+
+        
         self._sessionConfigurationCount = 0
         
         self.videoConfiguration = NextLevelVideoConfiguration()
@@ -715,6 +733,7 @@ public class NextLevel: NSObject {
         self.deviceDelegate = nil
         self.flashDelegate = nil
         self.videoDelegate = nil
+        self.metaDelegate = nil
         self.photoDelegate = nil
 
         self.removeApplicationObservers()
@@ -829,6 +848,11 @@ extension NextLevel {
                 self.updateVideoOrientation()
                 
                 self.commitConfiguration()
+
+                if let metaOutput = self._metaOutput {
+                    metaOutput.metadataObjectTypes = [AVMetadataObjectTypeFace]
+                }
+
                 
                 if session.isRunning == false {
                     session.startRunning()
@@ -974,6 +998,7 @@ extension NextLevel {
 
                 let _ = self.addAudioOuput()
                 let _ = self.addVideoOutput()
+                let _ = self.addMetaOutput()
                 break
             case .photo:
                 if session.sessionPreset != self.photoConfiguration.preset {
@@ -1111,6 +1136,27 @@ extension NextLevel {
         return false
         
     }
+    
+    
+    
+    private func addMetaOutput() -> Bool {
+        
+        if self._metaOutput == nil {
+            self._metaOutput = AVCaptureMetadataOutput()
+        }
+        
+        if let session = self._captureSession, let metaOutput = self._metaOutput {
+            if session.canAddOutput(metaOutput) {
+                session.addOutput(metaOutput)
+                metaOutput.setMetadataObjectsDelegate(self, queue: self._metaQueue)
+                return true
+            }
+        }
+        print("NextLevel, couldn't add meta output to session")
+        return false
+        
+    }
+
     
     private func addAudioOuput() -> Bool {
         
@@ -2339,7 +2385,11 @@ extension NextLevel {
 
 // MARK: - AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate
 
-extension NextLevel: AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate {
+extension NextLevel: AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureMetadataOutputObjectsDelegate, AVCaptureAudioDataOutputSampleBufferDelegate {
+    
+    public func captureOutput(_ captureOutput: AVCaptureOutput!, didOutputMetadataObjects metadataObjects: [Any]!, from connection: AVCaptureConnection!) {
+        self.metaDelegate?.nextLevel(self, didOutputMetadataObjects: metadataObjects, from: connection)
+    }
     
     public func captureOutput(_ captureOutput: AVCaptureOutput!, didOutputSampleBuffer sampleBuffer: CMSampleBuffer!, from connection: AVCaptureConnection!) {
         if let videoOutput = self._videoOutput,

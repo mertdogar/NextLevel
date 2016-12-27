@@ -163,6 +163,7 @@ class CameraViewController: UIViewController {
         nextLevel.deviceDelegate = self
         nextLevel.flashDelegate = self
         nextLevel.videoDelegate = self
+        nextLevel.metaDelegate = self
         nextLevel.photoDelegate = self
         
         // video configuration
@@ -470,7 +471,6 @@ extension CameraViewController: NextLevelFlashAndTorchDelegate {
 // MARK: - NextLevelVideoDelegate
 
 extension CameraViewController: NextLevelVideoDelegate {
-
     // video zoom
     func nextLevel(_ nextLevel: NextLevel, didUpdateVideoZoomFactor videoZoomFactor: Float) {
     }
@@ -560,6 +560,13 @@ extension CameraViewController: NextLevelVideoDelegate {
         
     }
     
+}
+
+extension CameraViewController: NextLevelMetaDelegate {
+    // meta 
+    func nextLevel(_ nextLevel: NextLevel, didOutputMetadataObjects metadataObjects: [Any]!, from connection: AVCaptureConnection!) {
+        print("Ahanda meta")
+    }
 }
 
 // MARK: - NextLevelPhotoDelegate
